@@ -54,7 +54,7 @@ export default function TimeSeries() {
           </AreaChart>
         </ResponsiveContainer>
         <p className="text-sm text-slate-600 mt-3">
-          La courbe brute montre la variabilité quotidienne, tandis que les moyennes mobiles 7j et 30j révèlent la tendance de fond et lissée.
+          La courbe brute montre la variabilité quotidienne, tandis que les moyennes mobiles 7j et 30j révèlent la tendance de fond.
         </p>
       </section>
 

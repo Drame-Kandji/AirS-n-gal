@@ -16,7 +16,7 @@ export default function Sidebar({ active, onChange }) {
         <Leaf className="text-good" size={30} />
         <div>
           <p className="font-display text-xl">AirSénégal</p>
-          <p className="text-xs text-slate-300">Qualité de l'air</p>
+          <p className="text-xs text-slate-300">Qualité de l'air au sénégal</p>
         </div>
       </div>
 
@@ -41,7 +41,7 @@ export default function Sidebar({ active, onChange }) {
         })}
       </nav>
 
-      <div className="mt-auto text-xs text-slate-400">v1.0 - EPT 2025-2026</div>
+      {/* <div className="mt-auto text-xs text-slate-400">v1.0 - EPT 2025-2026</div> */}
     </aside>
   );
 }

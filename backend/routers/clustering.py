@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from functools import lru_cache
+from threading import Lock
 
 import numpy as np
 import pandas as pd
@@ -33,9 +33,16 @@ CLUSTER_META = {
     2: {"label": "Forte pollution", "color": "#E74C3C"},
 }
 
+ELBOW_SAMPLE_SIZE = 4000
+MODEL_SAMPLE_SIZE = 20000
+SILHOUETTE_SAMPLE_SIZE = 1500
 
-@lru_cache(maxsize=1)
-def _fit_models():
+
+_MODEL_CACHE = None
+_MODEL_LOCK = Lock()
+
+
+def _compute_models():
     df = get_df()
 
     cols = []
@@ -48,14 +55,36 @@ def _fit_models():
     scaler = StandardScaler()
     X = scaler.fit_transform(work)
 
+    # Silhouette on the full dataset is very expensive for large N;
+    # use a representative sample to keep endpoint latency acceptable.
+    if len(work) > ELBOW_SAMPLE_SIZE:
+        sample_idx = work.sample(ELBOW_SAMPLE_SIZE, random_state=42).index
+        sample_mask = work.index.isin(sample_idx)
+        X_elbow = X[sample_mask]
+    else:
+        X_elbow = X
+
+    # Train model/PCA on a representative sample, then apply to full X.
+    if len(work) > MODEL_SAMPLE_SIZE:
+        model_idx = work.sample(MODEL_SAMPLE_SIZE, random_state=42).index
+        model_mask = work.index.isin(model_idx)
+        X_model = X[model_mask]
+    else:
+        X_model = X
+
     elbow = []
     best_k = 2
     best_silhouette = -1.0
 
     for k in range(2, 9):
-        model = KMeans(n_clusters=k, random_state=42, n_init=20)
-        labels = model.fit_predict(X)
-        sil = silhouette_score(X, labels)
+        model = KMeans(n_clusters=k, random_state=42, n_init=10)
+        labels = model.fit_predict(X_elbow)
+        sil = silhouette_score(
+            X_elbow,
+            labels,
+            sample_size=min(SILHOUETTE_SAMPLE_SIZE, len(X_elbow)),
+            random_state=42,
+        )
         elbow.append(
             {
                 "k": int(k),
@@ -67,11 +96,13 @@ def _fit_models():
             best_silhouette = sil
             best_k = k
 
-    model3 = KMeans(n_clusters=3, random_state=42, n_init=30)
-    labels3 = model3.fit_predict(X)
+    model3 = KMeans(n_clusters=3, random_state=42, n_init=8)
+    model3.fit(X_model)
+    labels3 = model3.predict(X)
 
     pca2 = PCA(n_components=2, random_state=42)
-    coords = pca2.fit_transform(X)
+    pca2.fit(X_model)
+    coords = pca2.transform(X)
 
     work_clustered = work.copy()
     work_clustered["cluster"] = labels3
@@ -84,6 +115,19 @@ def _fit_models():
         "elbow": elbow,
         "k_optimal": best_k,
     }
+
+
+def _fit_models():
+    global _MODEL_CACHE
+
+    if _MODEL_CACHE is not None:
+        return _MODEL_CACHE
+
+    with _MODEL_LOCK:
+        if _MODEL_CACHE is None:
+            _MODEL_CACHE = _compute_models()
+
+    return _MODEL_CACHE
 
 
 @router.get("/elbow")

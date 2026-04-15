@@ -1,7 +1,16 @@
 const API_BASE = "http://localhost:8000";
 
 const fetchJson = async (url) => {
-  const response = await fetch(`${API_BASE}${url}`);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  let response;
+
+  try {
+    response = await fetch(`${API_BASE}${url}`, { signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
   if (!response.ok) {
     throw new Error(`API error: ${response.status}`);
   }

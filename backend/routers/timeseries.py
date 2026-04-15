@@ -126,9 +126,22 @@ def get_seasonal_comparison() -> JSONResponse:
     if saison_col not in df.columns:
         return JSONResponse(content={"seasons": []})
 
+    def _norm_season(value: str) -> str:
+        text = str(value).strip().lower()
+        text = text.replace("_", " ").replace("-", " ")
+        text = text.replace("é", "e").replace("è", "e").replace("ê", "e")
+        text = " ".join(text.split())
+        if "hivernage" in text:
+            return "hivernage"
+        if "saison" in text and "seche" in text:
+            return "saison_seche"
+        return text
+
+    season_norm = df[saison_col].map(_norm_season)
+
     seasons = []
     for season_name, label in [("hivernage", "Hivernage (juin-oct.)"), ("saison_seche", "Saison sèche (nov.-mai)")]:
-        series = df[df[saison_col].astype(str).str.lower() == season_name][pm25_col].dropna()
+        series = df[season_norm == season_name][pm25_col].dropna()
         seasons.append(
             {
                 "name": label,

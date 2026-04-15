@@ -3,13 +3,29 @@ import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, Ref
 import { api } from "../api";
 
 const Spinner = () => <div className="py-16 text-center text-slate-500">Chargement...</div>;
+const ErrorBox = ({ message }) => (
+  <div className="rounded-xl bg-red-50 text-red-700 border border-red-200 p-4">
+    {message}
+  </div>
+);
 
 export default function Clustering() {
   const elbowQuery = useQuery({ queryKey: ["clusterElbow"], queryFn: api.clusteringElbow });
-  const profileQuery = useQuery({ queryKey: ["clusterProfiles"], queryFn: api.clusteringProfiles });
-  const scatterQuery = useQuery({ queryKey: ["clusterScatter"], queryFn: () => api.clusteringScatter(5000) });
+  const profileQuery = useQuery({
+    queryKey: ["clusterProfiles"],
+    queryFn: api.clusteringProfiles,
+    enabled: elbowQuery.isSuccess,
+  });
+  const scatterQuery = useQuery({
+    queryKey: ["clusterScatter"],
+    queryFn: () => api.clusteringScatter(5000),
+    enabled: profileQuery.isSuccess,
+  });
 
   if ([elbowQuery, profileQuery, scatterQuery].some((q) => q.isLoading)) return <Spinner />;
+  if ([elbowQuery, profileQuery, scatterQuery].some((q) => q.isError)) {
+    return <ErrorBox message="Impossible de charger les données de clustering. Vérifie que le backend est actif et recharge la page." />;
+  }
 
   const elbow = elbowQuery.data?.data || [];
   const clusters = profileQuery.data?.clusters || [];
@@ -43,13 +59,15 @@ export default function Clustering() {
         <ResponsiveContainer width="100%" height={320}>
           <LineChart data={elbow}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="k" />
-            <YAxis yAxisId="left" />
-            <YAxis yAxisId="right" orientation="right" />
+            <XAxis xAxisId={0} dataKey="k" />
+            <YAxis yAxisId={0} />
+            <YAxis yAxisId={1} orientation="right" />
             <Tooltip />
-            <ReferenceLine x={elbowQuery.data?.k_optimal} stroke="#2ECC71" strokeWidth={2} yAxisId="left" />
-            <Line yAxisId="left" dataKey="inertia" stroke="#3498DB" strokeWidth={3} />
-            <Line yAxisId="right" dataKey="silhouette" stroke="#E74C3C" strokeWidth={3} />
+            {Number.isFinite(elbowQuery.data?.k_optimal) ? (
+              <ReferenceLine xAxisId={0} yAxisId={0} x={elbowQuery.data?.k_optimal} stroke="#2ECC71" strokeWidth={2} />
+            ) : null}
+            <Line yAxisId={0} dataKey="inertia" stroke="#3498DB" strokeWidth={3} />
+            <Line yAxisId={1} dataKey="silhouette" stroke="#E74C3C" strokeWidth={3} />
           </LineChart>
         </ResponsiveContainer>
         <p className="text-sm text-slate-600 mt-3">
